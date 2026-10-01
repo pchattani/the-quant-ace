@@ -115,7 +115,10 @@ function explore(T) {
     '<a href="#/methodology"><b>Methodology</b><span>How the models work</span></a>' +
     '<a href="' + TA.FOOTBALL_URL + '"><b>⚽ The Quant Footballer</b><span>The sister site for football</span></a>' +
     '<a href="' + TA.PADDOCK_URL + '"><b>🏁 The Quant Paddock</b><span>The sister site for Formula 1</span></a>' +
-    '<a href="' + TA.HARDWOOD_URL + '"><b>🏀 The Quant Hardwood</b><span>The sister site for the NBA and WNBA</span></a></div>';
+    '<a href="' + TA.HARDWOOD_URL + '"><b>🏀 The Quant Hardwood</b><span>The sister site for the NBA and WNBA</span></a>' +
+    '<a href="' + TA.BULLPEN_URL + '"><b>⚾ The Quant Bullpen</b><span>The sister site for MLB</span></a>' +
+    '<a href="' + TA.GRIDIRON_URL + '"><b>🏈 The Quant Gridiron</b><span>The sister site for the NFL</span></a>' +
+    '<a href="' + TA.RINK_URL + '"><b>🏒 The Quant Rink</b><span>The sister site for the NHL</span></a></div>';
 }
 
 function pastYear(T, Y) {

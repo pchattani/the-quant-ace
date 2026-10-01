@@ -59,6 +59,9 @@ const PLOTLY_CONF = { displayModeBar: false, responsive: true };
 const FOOTBALL_URL = 'https://pchattani.github.io/the-quant-footballer/';
 const PADDOCK_URL = 'https://pchattani.github.io/the-quant-paddock/';
 const HARDWOOD_URL = 'https://pchattani.github.io/the-quant-hardwood/';
+const BULLPEN_URL = 'https://pchattani.github.io/the-quant-bullpen/';
+const GRIDIRON_URL = 'https://pchattani.github.io/the-quant-gridiron/';
+const RINK_URL = 'https://pchattani.github.io/the-quant-rink/';
 const TOURS = ['atp', 'wta'];
 const TOUR_NAME = { atp: 'ATP', wta: 'WTA' };
 const LS_TOUR = 'qa-tour';
@@ -1131,7 +1134,7 @@ return {
   toggles: toggles, wireToggles: wireToggles, pageHead: pageHead,
   // charts
   plot: plot, layout: layout, PALETTE: PALETTE, C: C, DARK_LAYOUT: DARK_LAYOUT, PLOTLY_CONF: PLOTLY_CONF,
-  FOOTBALL_URL: FOOTBALL_URL, PADDOCK_URL: PADDOCK_URL, HARDWOOD_URL: HARDWOOD_URL,
+  FOOTBALL_URL: FOOTBALL_URL, PADDOCK_URL: PADDOCK_URL, HARDWOOD_URL: HARDWOOD_URL, BULLPEN_URL: BULLPEN_URL, GRIDIRON_URL: GRIDIRON_URL, RINK_URL: RINK_URL,
   charts: {}
 };
 })();
