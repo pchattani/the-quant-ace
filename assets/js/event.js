@@ -138,7 +138,8 @@ function render(el, params) {
     // ── the draw
     const hasDraw = (draw.slots || []).length > 0;
     const drawSub = (draw.source === 'reconstructed' ? 'rebuilt from the matches played; seeds not shown' : draw.source === 'wta' ? 'the WTA draw with seeds and entry types' : '') +
-      (draw.complete === false ? ' · some first-round blocks are not yet linked' : '');
+      (draw.complete === false ? ' · some first-round blocks are not yet linked' +
+        (draw.source === 'reconstructed' ? ' (ESPN gives no bracket order or seeds, so later-round paths are approximate until the next round is set)' : '') : '');
     document.getElementById('ev-draw').innerHTML = TA.card('The draw', (drawSub ? esc(drawSub) + ' · ' : '') + 'percentages are the model’s chance of winning each match',
       hasDraw ? '<div id="ev-bracket"></div><div id="ev-path"></div>' : TA.muted('The draw is not available yet.'));
     let api = null;
