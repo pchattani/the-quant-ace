@@ -5,59 +5,105 @@
  *
  * The matchup odds are computed in the browser from the published ratings with the same recipe
  * as models/predict.py: an Elo probability from the surface-blended ratings (elo.p_win), a
- * serve/return probability from the exact Markov chain fed with each player's hold against this
- * opponent, the two blended on the log-odds scale with the fitted weights, and the serve-point
- * probabilities shifted so the chain reproduces the blend (match_chain.solve_shift). It uses each
- * player's latest published hold and break by surface, so it can differ by a point or two from
- * the match-centre price, which uses the full fit.
+ * serve/return probability from the exact Markov chain fed with each player's chain-scale hold
+ * against this opponent, the two blended on the log-odds scale with the fitted weights, and the
+ * serve-point probabilities shifted so the sigma-mixture of the chain reproduces the blend
+ * (match_chain.solve_shift / match_mix). Every model constant (Elo surface weight and best-of-5
+ * stretch, the blend weights and sigma, the serve/return model's surface, best-of-5 and k_hold terms,
+ * the base serve-point rates) comes from data/<T>/model.json, which the build writes per tour from
+ * the committed fits; nothing is hard-coded here. It uses each player's latest published hold and
+ * break by surface, so it can differ by a point or two from the match-centre price, which uses the
+ * full fit.
  *
  * Data: data/<T>/players/<a>.json and <b>.json (results of the last two years, h2h tallies,
  * serve_return paths, elo), data/<T>/elo.json (current ratings), data/<T>/players.json (catalogue:
- * hold, break, real stats, tour mean hold), data/<T>/calibration.json (blend weights), and on demand
+ * hold, break, real stats, tour mean hold), data/<T>/model.json (the model's constants), and on demand
  * data/<T>/<year>/schedule.json + events.json for the full history. Uses TA.fk from players.js. */
 (function (TA) {
 'use strict';
 
 const K = () => TA.fk;
-// Committed fits (models/fitted/*.json) and code defaults, used when the payloads do not carry them.
-const W_SURF = { atp: 0.45931, wta: 0.5 };          // elo_params_atp.json w_surf; elo.DEFAULT_PARAMS for the WTA
-const BO5 = { atp: 1.36582, wta: 1.1 };             // elo_params_atp.json bo5; DEFAULT_PARAMS
-const BLEND = { atp: { w_elo: 0.72621, w_sr: 0.19541 }, wta: { w_elo: 0.6, w_sr: 0.4 } };   // predict_atp.json; predict.DEFAULT_BLEND
-// Surface terms of the hold model (serve_return_atp.json base: clay -0.167, grass +0.322, hard 0), centred on the
-// tour's surface mix (hard .566, clay .307, grass .127) so they shift the tour-average hold to each surface.
-const SURF_OFF = { hard: 0.0104, clay: -0.1566, grass: 0.3328 };
-const DEFAULT_HOLD = { atp: 0.79, wta: 0.64 };
+const SURFS = ['hard', 'clay', 'grass'];
+// 7-point Gauss-Hermite rule for e ~ N(0, 1) (numpy hermegauss(7), weights normalised): match_chain._gh.
+const GH_Z = [-3.7504397177, -2.3667594107, -1.1544053947, 0, 1.1544053947, 2.3667594107, 3.7504397177];
+const GH_W = [0.000548268856, 0.030757123968, 0.240123178605, 0.457142857143, 0.240123178605, 0.030757123968, 0.000548268856];
+
+/* The pricing constants from data/<T>/model.json (models/fitted via analytics/site.model_payload), or null. */
+function modelConsts(mj) {
+  const k = K();
+  if (!mj || mj.ok === false) return null;
+  const e = mj.elo || {}, bl = mj.blend || {}, b = ((mj.serve_return || {}).base) || {};
+  if (!k.isNum(e.w_surf) || !k.isNum(e.bo5) || !k.isNum(bl.w_elo) || !k.isNum(bl.w_sr)) return null;
+  const num = (x, d) => (k.isNum(x) ? x : d);
+  // Surface terms of the hold model (hard 0), centred on the tour's surface mix so they move the tour-average
+  // hold to each surface.
+  const term = { hard: 0, clay: num(b.clay, 0), grass: num(b.grass, 0) }, sh = b.surface_share || {};
+  const tot = SURFS.reduce((t, s) => t + num(sh[s], 0), 0);
+  const mean = tot > 0 ? SURFS.reduce((t, s) => t + num(sh[s], 0) * term[s], 0) / tot : 0;
+  const surfOff = {};
+  SURFS.forEach(s => { surfOff[s] = term[s] - mean; });
+  const ref = (b.ref || {}).all || {};
+  const h0 = k.isNum(b.mu) ? k.sigmoid(b.mu + mean + num(ref.s, 0) - num(ref.r, 0) + num(b.k_hold, 0)) : null;
+  return { w_surf: e.w_surf, bo5: e.bo5, blend: { w_elo: bl.w_elo, w_sr: bl.w_sr, sigma: num(bl.sigma, 0), fitted: !!bl.fitted, version: bl.version },
+    surfOff: surfOff, hold_bo5: num(b.bo5, 0), k_hold: num(b.k_hold, 0), base_spw: mj.base_spw || {}, h0: h0,
+    through: (mj.serve_return || {}).through, as_of: mj.as_of };
+}
+K.modelConsts = modelConsts;
+
+/* The chain averaged over a per-match edge e ~ N(0, sigma^2) applied as (pa + e, pb - e), clipped to [0.01, 0.99]
+ * (match_chain.match_mix); sigma = 0 is the plain chain. */
+function mixMatch(pa, pb, bestOf, rule, sigma) {
+  const CH = K().chain;
+  if (!(sigma > 0)) return CH.match(pa, pb, bestOf, rule);
+  const out = { p: 0, sets: {}, straight: 0, games: 0 };
+  const cl = x => Math.min(0.99, Math.max(0.01, x));
+  GH_Z.forEach((z, i) => {
+    const m = CH.match(cl(pa + sigma * z), cl(pb - sigma * z), bestOf, rule), w = GH_W[i];
+    out.p += w * m.p; out.straight += w * m.straight; out.games += w * m.games;
+    Object.keys(m.sets).forEach(s => { out.sets[s] = (out.sets[s] || 0) + w * m.sets[s]; });
+  });
+  return out;
+}
+/* delta such that the sigma-mixture at (pa + delta, pb - delta) wins with probability target (match_chain.solve_shift). */
+function mixShift(pa, pb, bestOf, rule, target, sigma) {
+  let lo = Math.min(0, Math.max(0.02 - pa, pb - 0.98)), hi = Math.max(0, Math.min(0.98 - pa, pb - 0.02));
+  for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (mixMatch(pa + m, pb - m, bestOf, rule, sigma).p < target) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
+K.mixMatch = mixMatch;
 
 function matchupModel(T, ctx, A, B, surface, bestOf, rule) {
-  const k = K(), CH = k.chain;
+  const k = K(), CH = k.chain, M = ctx.model;
   const out = { surface: surface, bestOf: bestOf };
   // Elo.
   const eA = ctx.elo[A], eB = ctx.elo[B];
   if (eA && eB && k.isNum(eA.all) && k.isNum(eB.all)) {
-    const w = W_SURF[T], m = e => w * (k.isNum(e[surface]) ? e[surface] : e.all) + (1 - w) * e.all;
-    const f = bestOf === 5 ? BO5[T] : 1;
+    const w = M.w_surf, m = e => w * (k.isNum(e[surface]) ? e[surface] : e.all) + (1 - w) * e.all;
+    const f = bestOf === 5 ? M.bo5 : 1;
     out.elo_p = 1 / (1 + Math.pow(10, -f * (m(eA) - m(eB)) / 400));
   }
-  // Serve/return: hold of A against B on this surface.
+  // Serve/return: hold of A against B on this surface. The published rates are on the displayed scale (they
+  // include k_hold); the chain is priced on the chain scale (minus k_hold), plus the best-of-5 term.
   const hA = ctx.hb(A, surface), hB = ctx.hb(B, surface);
   if (hA && hB) {
-    const L0 = k.logit(ctx.h0) + (SURF_OFF[surface] || 0);
+    const L0 = k.logit(ctx.h0) + (M.surfOff[surface] || 0);
     const holdAB = k.sigmoid(k.logit(hA.hold) + k.logit(1 - hB.brk) - L0);
     const holdBA = k.sigmoid(k.logit(hB.hold) + k.logit(1 - hA.brk) - L0);
     out.holdAB = holdAB; out.holdBA = holdBA; out.h0 = k.sigmoid(L0);
-    out.pa = CH.inv(holdAB); out.pb = CH.inv(holdBA);
+    const adj = (bestOf === 5 ? M.hold_bo5 : 0) - M.k_hold;
+    out.pa = CH.inv(k.sigmoid(k.logit(holdAB) + adj)); out.pb = CH.inv(k.sigmoid(k.logit(holdBA) + adj));
     out.sr_p = CH.match(out.pa, out.pb, bestOf, rule).p;
   }
-  const bl = ctx.blend;
+  const bl = M.blend;
   if (k.isNum(out.elo_p) && k.isNum(out.sr_p)) { out.p = k.sigmoid(bl.w_elo * k.logit(out.elo_p) + bl.w_sr * k.logit(out.sr_p)); out.basis = 'blend'; }
   else if (k.isNum(out.elo_p)) { out.p = out.elo_p; out.basis = 'elo'; }
   else if (k.isNum(out.sr_p)) { out.p = out.sr_p; out.basis = 'serve/return'; }
   if (k.isNum(out.p)) {
     let pa = out.pa, pb = out.pb;
-    if (!k.isNum(pa)) { pa = 0.62; pb = 0.62; }
-    const d = CH.shift(pa, pb, bestOf, rule, out.p);
-    const m = CH.match(pa + d, pb - d, bestOf, rule);
-    out.dist = m; out.p_srv = [pa + d, pb - d];
+    if (!k.isNum(pa)) { pa = pb = k.isNum(M.base_spw[surface]) ? M.base_spw[surface] : CH.inv(ctx.h0); }    // predict.BASE_SPW
+    const d0 = CH.shift(pa, pb, bestOf, rule, out.p);                        // the centre pair (p_srv)
+    const dm = bl.sigma > 0 ? mixShift(pa, pb, bestOf, rule, out.p, bl.sigma) : d0;
+    out.dist = mixMatch(pa + dm, pb - dm, bestOf, rule, bl.sigma); out.p_srv = [pa + d0, pb - d0];
   }
   return out;
 }
@@ -78,11 +124,13 @@ function hbOf(career, catRow) {
   };
 }
 K.hbOf = hbOf;
-function tourHold(T, cat) {
+/* The matches-weighted mean hold of the catalogue; with too few matches, the model's tour-average hold
+ * (sigmoid(mu + mix-weighted surface term + mean s - mean r + k_hold) from model.json). */
+function tourHold(T, cat, M) {
   const k = K(), P = ((cat || {}).players) || {};
   let s = 0, w = 0;
   Object.keys(P).forEach(id => { const v = (P[id].values || {}).hold, n = P[id].matches || 0; if (k.isNum(v) && v > 0 && v < 1 && n > 0) { s += n * k.logit(v); w += n; } });
-  return w > 50 ? k.sigmoid(s / w) : DEFAULT_HOLD[T];
+  return w > 50 ? k.sigmoid(s / w) : (M && k.isNum(M.h0) ? M.h0 : null);
 }
 K.tourHold = tourHold;
 
@@ -102,7 +150,7 @@ function render(el, params, state) {
     const body = document.getElementById('h2-body');
     if (!a || !b) return suggest(T, body, a);
     body.innerHTML = k.muted('Loading…');
-    return Promise.all([TA.load(T + '/players/' + a + '.json'), TA.load(T + '/players/' + b + '.json'), TA.load(T + '/elo.json'), TA.load(T + '/players.json'), TA.load(T + '/calibration.json')]).then(res => {
+    return Promise.all([TA.load(T + '/players/' + a + '.json'), TA.load(T + '/players/' + b + '.json'), TA.load(T + '/elo.json'), TA.load(T + '/players.json'), TA.load(T + '/model.json')]).then(res => {
       if (!k.alive(el)) return null;
       k.learnCat(T, res[3]);
       const years = Array.from(new Set(((k.ok(res[0]) ? res[0].results : null) || []).map(r => String(r.date || '').slice(0, 4)).filter(y => /^\d{4}$/.test(y))));
@@ -131,7 +179,7 @@ function suggest(T, body, a) {
 function build(T, a, b, res, body) {
   const k = K();
   const cA = k.ok(res[0]) ? res[0] : null, cB = k.ok(res[1]) ? res[1] : null;
-  const E = k.ok(res[2]) ? res[2] : {}, cat = k.ok(res[3]) ? res[3] : {}, cal = k.ok(res[4]) ? res[4] : {};
+  const E = k.ok(res[2]) ? res[2] : {}, cat = k.ok(res[3]) ? res[3] : {}, M = modelConsts(k.ok(res[4]) ? res[4] : null);
   const P = cat.players || {};
   const nA = (cA && cA.name) || k.name(T, a), nB = (cB && cB.name) || k.name(T, b);
   const sA = k.surname(nA), sB = k.surname(nB);
@@ -140,7 +188,6 @@ function build(T, a, b, res, body) {
   const hA = ((cA || {}).h2h || []).find(r => r[0] === b), hB = ((cB || {}).h2h || []).find(r => r[0] === a);
   const tally = hA ? { w: hA[1], l: hA[2], last: hA[3] } : hB ? { w: hB[2], l: hB[1], last: hB[3] } : { w: met.filter(r => r.won).length, l: met.filter(r => !r.won).length, last: (met[0] || {}).date };
   const n = (tally.w || 0) + (tally.l || 0);
-  const blend = (cal.blend_all_years && k.isNum(cal.blend_all_years.w_elo)) ? { w_elo: cal.blend_all_years.w_elo, w_sr: cal.blend_all_years.w_sr, src: 'calibration.json' } : Object.assign({ src: 'committed fit' }, BLEND[T]);
   const eloOf = (pid, c) => {
     const cur = (E.current || {})[pid];
     if (cur) return cur;
@@ -148,7 +195,7 @@ function build(T, a, b, res, body) {
     return r ? { all: r[1], hard: r[2], clay: r[3], grass: r[4] } : null;
   };
   const hbA = hbOf(cA, P[a]), hbB = hbOf(cB, P[b]);
-  const ctx = { elo: {}, h0: tourHold(T, cat), blend: blend, hb: (pid, s) => (pid === a ? hbA(s) : hbB(s)) };
+  const ctx = { elo: {}, h0: tourHold(T, cat, M), model: M, hb: (pid, s) => (pid === a ? hbA(s) : hbB(s)) };
   ctx.elo[a] = eloOf(a, cA); ctx.elo[b] = eloOf(b, cB);
 
   const card = (pid, c, i) => {
@@ -176,6 +223,7 @@ function build(T, a, b, res, body) {
   const drawOdds = fmt => {
     const host = document.getElementById('h2-odds');
     const bo = fmt === '5' ? 5 : 3, rule = fmt === '5' || fmt === 'slam' ? 'tb10' : 'tb7';
+    if (!M || !k.isNum(ctx.h0)) { host.innerHTML = k.muted('The model\'s constants (data/' + T + '/model.json) are not published yet, so this matchup cannot be priced.'); drawSR([]); return; }
     const ms = k.SURFACES.map(s => matchupModel(T, ctx, a, b, s, bo, rule));
     if (!ms.some(m => k.isNum(m.p))) { host.innerHTML = k.muted('Not enough rating data to price this matchup.'); return; }
     const keys = Object.keys((ms.find(m => m.dist) || {}).dist ? ms.find(m => m.dist).dist.sets : {}).sort((x, y) => {
@@ -189,9 +237,9 @@ function build(T, a, b, res, body) {
       '<div id="h2-sets" style="height:300px"></div>' +
       k.table([{ label: 'Set score (' + sA + ' first)' }].concat(ms.map(m => ({ label: k.SURF_LABEL[m.surface], align: 'right' }))),
         keys.map(s => [{ v: s, html: '<strong>' + k.esc(s) + '</strong> <span class="muted-inline">' + (Number(s.split('-')[0]) > Number(s.split('-')[1]) ? sA : sB) + '</span>' }].concat(ms.map(m => ({ v: m.dist ? m.dist.sets[s] : null, html: m.dist ? k.pct(m.dist.sets[s], 1) : '—' })))), { compact: true }) +
-      '<div class="pg-note">Computed in the browser with the model\'s recipe: Elo on the surface-blended ratings (surface weight ' + W_SURF[T] + (bo === 5 ? ', best-of-5 stretch ' + BO5[T] : '') + '), the serve/return chain fed with each player\'s hold against this opponent, ' +
-      'blended as logit p = ' + k.num(blend.w_elo, 3) + ' × logit(Elo) + ' + k.num(blend.w_sr, 3) + ' × logit(serve/return) (' + k.esc(blend.src) + '), then the serve-point probabilities shifted so the exact chain reproduces that price; the set scores come from the shifted chain with the first server a coin toss. ' +
-      'It uses the latest published hold and break per surface, so it can differ by a point or two from a match-centre price. ' + (T === 'wta' ? 'The WTA runs on the code-default constants until its own fits are committed. ' : '') + '<a href="#/methodology/match-chain">How the chain works →</a></div>';
+      '<div class="pg-note">Computed in the browser with the model\'s recipe and the ' + k.TN(T) + '\'s fitted constants (data/' + T + '/model.json' + (M.as_of ? ', ' + k.esc(M.as_of) : '') + '): Elo on the surface-blended ratings (surface weight ' + k.num(M.w_surf, 3) + (bo === 5 ? ', best-of-5 stretch ' + k.num(M.bo5, 3) : '') + '), the serve/return chain fed with each player\'s hold against this opponent (chain scale' + (M.k_hold ? ', k<sub>hold</sub> ' + k.signed(M.k_hold, 3) : '') + (bo === 5 ? ', best-of-5 term ' + k.signed(M.hold_bo5, 3) : '') + '), ' +
+      'blended as logit p = ' + k.num(M.blend.w_elo, 3) + ' × logit(Elo) + ' + k.num(M.blend.w_sr, 3) + ' × logit(serve/return), then the serve-point probabilities shifted so the chain reproduces that price; the set scores come from the chain averaged over a per-match edge with σ = ' + k.num(M.blend.sigma, 2) + ', the first server a coin toss. ' +
+      'It uses the latest published hold and break per surface, so it can differ by a point or two from a match-centre price. <a href="#/methodology/match-chain">How the chain works →</a></div>';
     if (keys.length) {
       k.plot('h2-sets', ms.filter(m => m.dist).map(m => ({ type: 'bar', name: k.SURF_LABEL[m.surface], x: keys, y: keys.map(s => m.dist.sets[s]), marker: { color: k.surfColour(m.surface) }, hovertemplate: k.SURF_LABEL[m.surface] + ' %{x}: %{y:.1%}<extra></extra>' })),
         k.layout(Object.assign(k.legendTop(), { barmode: 'group', margin: { l: 44, r: 10, t: 30, b: 40 }, xaxis: { type: 'category', title: 'Sets (' + sA + '–' + sB + ')' }, yaxis: { tickformat: '.0%' } })));

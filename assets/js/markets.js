@@ -123,12 +123,14 @@ function render(el, params) {
       panels.fin = futuresTable(T, rowsOf((race || {}).finals_title, fut.finals_winner), { empty: 'No Finals prices.' });
       tabs.push({ key: 'fin', label: 'Finals winner', sub: srcText(fut.finals_winner) || 'model from the season simulation' });
     }
-    const sl = fut.slams_2027 || {};
+    // next season's Slams: the key is "slams_<next season>" (analytics/site.py markets_payload)
+    const slKey = Object.keys(fut).filter(k => /^slams_\d{4}$/.test(k)).sort().pop();
+    const sl = (slKey && fut[slKey]) || {}, slYear = slKey ? slKey.slice(6) : '';
     Object.keys(sl).forEach(k => {
       const t = sl[k];
       if (!t || typeof t !== 'object') return;
       panels['sl:' + k] = futuresTable(T, rowsOf({}, t), { binary: t.kind !== 'tournament', empty: 'No prices.' });
-      tabs.push({ key: 'sl:' + k, label: TA.titleCase(k) + ' 2027', sub: [srcText(t), 'market only'].filter(Boolean).join(' · ') });
+      tabs.push({ key: 'sl:' + k, label: TA.titleCase(k) + ' ' + slYear, sub: [srcText(t), 'market only'].filter(Boolean).join(' · ') });
     });
     const info = TA.tourInfo(T);
     const cards = [].concat(info.live || [], info.today || [], info.upcoming || []);
