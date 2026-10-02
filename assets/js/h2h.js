@@ -44,7 +44,7 @@ function modelConsts(mj) {
   SURFS.forEach(s => { surfOff[s] = term[s] - mean; });
   const ref = (b.ref || {}).all || {};
   const h0 = k.isNum(b.mu) ? k.sigmoid(b.mu + mean + num(ref.s, 0) - num(ref.r, 0) + num(b.k_hold, 0)) : null;
-  return { w_surf: e.w_surf, bo5: e.bo5, blend: { w_elo: bl.w_elo, w_sr: bl.w_sr, sigma: num(bl.sigma, 0), fitted: !!bl.fitted, version: bl.version },
+  return { w_surf: e.w_surf, bo5: e.bo5, blend: { w_elo: bl.w_elo, w_sr: bl.w_sr, w_gelo: num(bl.w_gelo, 0), gelo_w_surf: num(bl.gelo_w_surf, 0), sigma: num(bl.sigma, 0), fitted: !!bl.fitted, version: bl.version },
     surfOff: surfOff, hold_bo5: num(b.bo5, 0), k_hold: num(b.k_hold, 0), base_spw: mj.base_spw || {}, h0: h0,
     through: (mj.serve_return || {}).through, as_of: mj.as_of };
 }
@@ -95,7 +95,11 @@ function matchupModel(T, ctx, A, B, surface, bestOf, rule) {
     out.sr_p = CH.match(out.pa, out.pb, bestOf, rule).p;
   }
   const bl = M.blend;
-  if (k.isNum(out.elo_p) && k.isNum(out.sr_p)) { out.p = k.sigmoid(bl.w_elo * k.logit(out.elo_p) + bl.w_sr * k.logit(out.sr_p)); out.basis = 'blend'; }
+  // Game-share Elo difference (models/gelo.py; elo.json current 'g' = [all, hard, clay, grass]); 0 when either is missing.
+  const gA = eA && eA.g, gB = eB && eB.g, si = { hard: 1, clay: 2, grass: 3 }[surface] || 1;
+  const gm = g => bl.gelo_w_surf * g[si] + (1 - bl.gelo_w_surf) * g[0];
+  out.gelo_diff = (bl.w_gelo && gA && gB) ? gm(gA) - gm(gB) : 0;
+  if (k.isNum(out.elo_p) && k.isNum(out.sr_p)) { out.p = k.sigmoid(bl.w_elo * k.logit(out.elo_p) + bl.w_sr * k.logit(out.sr_p) + bl.w_gelo * out.gelo_diff); out.basis = 'blend'; }
   else if (k.isNum(out.elo_p)) { out.p = out.elo_p; out.basis = 'elo'; }
   else if (k.isNum(out.sr_p)) { out.p = out.sr_p; out.basis = 'serve/return'; }
   if (k.isNum(out.p)) {
@@ -238,7 +242,7 @@ function build(T, a, b, res, body) {
       k.table([{ label: 'Set score (' + sA + ' first)' }].concat(ms.map(m => ({ label: k.SURF_LABEL[m.surface], align: 'right' }))),
         keys.map(s => [{ v: s, html: '<strong>' + k.esc(s) + '</strong> <span class="muted-inline">' + (Number(s.split('-')[0]) > Number(s.split('-')[1]) ? sA : sB) + '</span>' }].concat(ms.map(m => ({ v: m.dist ? m.dist.sets[s] : null, html: m.dist ? k.pct(m.dist.sets[s], 1) : '—' })))), { compact: true }) +
       '<div class="pg-note">Computed in the browser with the model\'s recipe and the ' + k.TN(T) + '\'s fitted constants (data/' + T + '/model.json' + (M.as_of ? ', ' + k.esc(M.as_of) : '') + '): Elo on the surface-blended ratings (surface weight ' + k.num(M.w_surf, 3) + (bo === 5 ? ', best-of-5 stretch ' + k.num(M.bo5, 3) : '') + '), the serve/return chain fed with each player\'s hold against this opponent (chain scale' + (M.k_hold ? ', k<sub>hold</sub> ' + k.signed(M.k_hold, 3) : '') + (bo === 5 ? ', best-of-5 term ' + k.signed(M.hold_bo5, 3) : '') + '), ' +
-      'blended as logit p = ' + k.num(M.blend.w_elo, 3) + ' × logit(Elo) + ' + k.num(M.blend.w_sr, 3) + ' × logit(serve/return), then the serve-point probabilities shifted so the chain reproduces that price; the set scores come from the chain averaged over a per-match edge with σ = ' + k.num(M.blend.sigma, 2) + ', the first server a coin toss. ' +
+      'blended as logit p = ' + k.num(M.blend.w_elo, 3) + ' × logit(Elo) + ' + k.num(M.blend.w_sr, 3) + ' × logit(serve/return)' + (M.blend.w_gelo ? ' + ' + k.num(M.blend.w_gelo, 3) + ' × the game-share Elo difference' : '') + ', then the serve-point probabilities shifted so the chain reproduces that price; the set scores come from the chain averaged over a per-match edge with σ = ' + k.num(M.blend.sigma, 2) + ', the first server a coin toss. ' +
       'It uses the latest published hold and break per surface, so it can differ by a point or two from a match-centre price. <a href="#/methodology/match-chain">How the chain works →</a></div>';
     if (keys.length) {
       k.plot('h2-sets', ms.filter(m => m.dist).map(m => ({ type: 'bar', name: k.SURF_LABEL[m.surface], x: keys, y: keys.map(s => m.dist.sets[s]), marker: { color: k.surfColour(m.surface) }, hovertemplate: k.SURF_LABEL[m.surface] + ' %{x}: %{y:.1%}<extra></extra>' })),
