@@ -9,7 +9,7 @@
  *   #/<T>/event/<event_id>          event (tournament page; event_id = "<tid>-<year>")
  *   #/<T>/match/<mid>               match centre
  *   #/<T>/player/<pid>              player
- *   #/<T>/players  rankings  race  elo  calendar  lab  markets  calibration
+ *   #/<T>/players  rankings  race  elo  calendar  lab  markets  calibration  value (?v=breakout|luck|over|surface|market|validation)
  *   #/<T>/h2h[/<a>[/<b>]]           head to head
  *   #/<T>/compare[/<a>[/<b>]]       compare players
  *   #/glossary[/<key>]  #/methodology  #/disclaimer   (global; a tour prefix is accepted)
@@ -111,6 +111,7 @@ addRoute('compare/:a', 'compare');
 addRoute('compare/:a/:b', 'compare');
 addRoute('markets', 'markets');
 addRoute('calibration', 'calibration');
+addRoute('value', 'value');
 addRoute('glossary', 'glossary', [], {}, true);
 addRoute('glossary/:id', 'glossary', [], {}, true);
 addRoute('methodology', 'methodology', [], {}, true);
@@ -123,11 +124,11 @@ const ALIASES = {
 const TITLES = {
   hub: 'Hub', event: 'Tournament', match: 'Match centre', player: 'Player', players: 'Players', rankings: 'Rankings',
   race: 'Race', elo: 'Elo', calendar: 'Calendar', h2h: 'Head to head', lab: 'Lab', compare: 'Compare',
-  markets: 'Markets', calibration: 'Calibration', glossary: 'Glossary', methodology: 'Methodology', disclaimer: 'Disclaimer & terms'
+  markets: 'Markets', calibration: 'Calibration', value: 'Value', glossary: 'Glossary', methodology: 'Methodology', disclaimer: 'Disclaimer & terms'
 };
 const NAV_OF = { hub: 'hub', event: 'calendar', calendar: 'calendar', match: 'hub', player: 'players', players: 'players',
   rankings: 'rankings', race: 'race', elo: 'elo', h2h: 'h2h', lab: 'lab', compare: 'compare', markets: 'markets',
-  calibration: 'calibration', glossary: 'glossary', methodology: 'methodology' };
+  calibration: 'calibration', value: 'value', glossary: 'glossary', methodology: 'methodology' };
 // Where a page lands when the tour is switched (id pages fall back to their list).
 const SWITCH_TO = { event: 'calendar', match: 'hub', player: 'players', h2h: 'h2h', compare: 'compare' };
 
@@ -1000,7 +1001,7 @@ function updateHeader() {
   });
   const links = { hub: '#/' + T + yq(T, Y), calendar: href(T, 'calendar', Y), rankings: href(T, 'rankings', Y), race: href(T, 'race', Y),
     elo: href(T, 'elo', Y), players: href(T, 'players', Y), h2h: href(T, 'h2h'), lab: href(T, 'lab', Y), compare: href(T, 'compare', Y),
-    markets: href(T, 'markets'), calibration: href(T, 'calibration'), glossary: '#/glossary', methodology: '#/methodology' };
+    markets: href(T, 'markets'), calibration: href(T, 'calibration'), value: href(T, 'value'), glossary: '#/glossary', methodology: '#/methodology' };
   document.querySelectorAll('.global-nav a[data-nav]').forEach(a => { if (links[a.dataset.nav]) a.setAttribute('href', links[a.dataset.nav]); });
   const t = document.querySelector('.site-title a');
   if (t) t.setAttribute('href', '#/' + T);

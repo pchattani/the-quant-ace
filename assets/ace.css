@@ -237,3 +237,21 @@ sup { font-size: 0.66em; line-height: 0; }
 .lg-btn.active { background: var(--ace); color: var(--ace-ink); }
 .tbtn.active { border-color: var(--ace); }
 .pg-toggle button.on { border-color: var(--ace); }
+
+/* ── Value (value.js) ───────────────────────────────────────────────────── */
+.vx-kpis { padding: 12px 14px 0; margin-bottom: 4px; }
+.vx-whys { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip.vx-why { font-size: 0.7rem; padding: 1px 7px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; text-transform: none; letter-spacing: 0; }
+.show-sm { display: none; }
+.vx-mwhy { margin-top: 4px; }
+.chip.vx-why b { font-weight: 700; margin-left: 2px; }
+.vx-sub { font-size: 0.7rem; color: var(--text3); font-weight: 400; }
+.vx-sub-inline { font-size: 0.72rem; color: var(--text3); font-weight: 400; }
+.vx-card .kpi-grid { padding: 12px 12px 0; }
+.vx-card-why { padding: 4px 14px 12px; font-size: 0.78rem; color: var(--text3); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.vx-warn { color: var(--text2); border-left: 3px solid var(--yellow); margin: 10px 14px; padding: 6px 10px; }
+@media (max-width: 760px) { .show-sm { display: block; } }
+@media (max-width: 640px) {
+  .chip.vx-why { white-space: normal; }
+  .vx-kpis { padding: 10px 10px 0; }
+}

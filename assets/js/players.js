@@ -667,6 +667,7 @@ function drawPlayer(el, T, pid, career, careerRaw, cat, elo, ranks, race) {
     K.tile(finalsName, isNum(fq) ? K.pct(fq) : '—', isNum(fq) ? 'qualification odds · <a href="' + K.href(T, 'race') + '">race →</a>' : 'not simulated'),
     K.tile('Year-end No. 1', isNum(no1) ? K.pct(no1) : '—', isNum(no1) ? 'season simulation' : 'not in contention')
   ].join('') + '</div>';
+  h += '<div id="pp-value"></div>';
 
   // Percentiles + radar.
   const surfOpts = K.SURFACES.filter(s => p && (p.pct_surface || {})[s]);
@@ -705,6 +706,7 @@ function drawPlayer(el, T, pid, career, careerRaw, cat, elo, ranks, race) {
   const rv = rival && P[rival] ? P[rival] : null;
   K.radar('pp-radar', axes, [{ name: name, pct: pctP, colour: K.CA }].concat(rv ? [{ name: rv.name, pct: rv.pct || {}, colour: K.CB }] : []));
 
+  if (TA.value && typeof TA.value.card === 'function') TA.value.card(T, pid, document.getElementById('pp-value'));
   drawClutch(c, p, metrics);
   drawEloHistory(T, c, el);
   drawServeReturn(c, el);
