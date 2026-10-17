@@ -1,4 +1,12 @@
-/* The Quant Ace — core: namespace, state, routing, cached loading, helpers, search.
+/* The Quant Ace — core: namespace, state, routing, cached loading, helpers, search, and the shell from
+ * The Quant design kit (assets/qk: QK.shell top bar, the section nav, search palette, theme; charts
+ * through assets/js/plotly-ec.js on ECharts).
+ *
+ * Sections (docs/REDESIGN.md; tennis labels): Overview #/<T> · Draws (tournaments, draws and draw
+ * simulations, match centre, odds board) · Rankings (rankings, race, Elo) · Players (players, player
+ * pages, head to head) · Value (breakouts, luck, over- and undervalued) · Lab (scatter lab, compare) ·
+ * Model (methodology, calibration, glossary, terms). Tennis has no Teams and no Fantasy. Every old
+ * route still resolves.
  *
  * A static shell over JSON payloads under data/ (see oddsmarkets/tennis/PAYLOADS.md).
  * Every page module registers itself with TA.route(name, renderFn) and never edits this
@@ -34,16 +42,24 @@ window.TA = (function () {
 
 // ── constants ──────────────────────────────────────────────────────────────
 
+/* Colours are design tokens (CSS custom properties): HTML uses them directly, the chart shim resolves them for the
+ * current theme at paint time. Player 1 / the model = chart slot 1 (blue), player 2 / the market = slot 2 (orange).
+ * Surfaces keep their identity colours (hard blue, clay terracotta, grass green, indoor violet). */
 const C = {
-  bg: '#0d1117', bg2: '#161b22', bg3: '#21262d', border: '#30363d',
-  text: '#e6edf3', text2: '#8b949e', text3: '#6e7681',
-  blue: '#58a6ff', green: '#3fb950', red: '#f85149', orange: '#f97316',
-  purple: '#bc8cff', yellow: '#d29922', teal: '#39d0d8', ace: '#d9f24f', ace2: '#b5cc3a',
-  p1: '#d9f24f', p2: '#58a6ff',
-  hard: '#3b82f6', clay: '#d2693c', grass: '#3fb950', indoor: '#a371f7', carpet: '#8b949e',
-  pctLow: [59, 130, 246], pctMid: [107, 114, 128], pctHigh: [239, 68, 68]
+  bg: 'var(--bg)', bg2: 'var(--s-1)', bg3: 'var(--s-2)', border: 'var(--line-2)',
+  text: 'var(--ink-1)', text2: 'var(--ink-2)', text3: 'var(--ink-3)',
+  blue: 'var(--c-1)', green: 'var(--up)', red: 'var(--down)', orange: 'var(--c-2)',
+  purple: 'var(--c-7)', yellow: 'var(--c-4)', teal: 'var(--c-3)', ace: 'var(--c-1)', ace2: 'var(--c-1)', accent: 'var(--accent)',
+  p1: 'var(--c-1)', p2: 'var(--c-2)',
+  hard: '#3b82f6', clay: '#d2693c', grass: '#3fb950', indoor: '#a371f7', carpet: '#8b949e'
 };
-const PALETTE = ['#d9f24f', '#58a6ff', '#f97316', '#3fb950', '#bc8cff', '#f85149', '#39d0d8', '#d29922', '#79c0ff', '#d2a8ff', '#ff7b72', '#7ee787'];
+const PALETTE = ['var(--c-1)', 'var(--c-2)', 'var(--c-3)', 'var(--c-4)', 'var(--c-5)', 'var(--c-6)', 'var(--c-7)', 'var(--c-8)'];
+/* A colour at alpha a: hex -> rgba(); a token or any CSS colour -> color-mix(). */
+function alpha(c, a) {
+  const h = String(c || '').replace('#', '');
+  if (/^[0-9a-f]{6}$/i.test(h)) return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) + ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
+  return 'color-mix(in srgb, ' + (c || 'var(--ink-3)') + ' ' + Math.round(a * 100) + '%, transparent)';
+}
 const DARK_LAYOUT = {
   paper_bgcolor: 'rgba(0,0,0,0)',
   plot_bgcolor: 'rgba(0,0,0,0)',
@@ -118,17 +134,41 @@ addRoute('methodology', 'methodology', [], {}, true);
 addRoute('disclaimer', 'disclaimer', [], {}, true);
 
 const ALIASES = {
-  home: 'hub', index: 'hub', '': 'hub', tour: 'hub',
-  tournament: 'event', events: 'calendar', schedule: 'calendar', docs: 'methodology', 'head-to-head': 'h2h'
+  home: 'hub', index: 'hub', '': 'hub', tour: 'hub', overview: 'hub',
+  tournament: 'event', events: 'calendar', schedule: 'calendar', docs: 'methodology', 'head-to-head': 'h2h',
+  draws: 'calendar', fixtures: 'calendar', tournaments: 'calendar', standings: 'rankings', model: 'methodology', odds: 'markets', terms: 'disclaimer'
 };
 const TITLES = {
-  hub: 'Hub', event: 'Tournament', match: 'Match centre', player: 'Player', players: 'Players', rankings: 'Rankings',
+  hub: 'Overview', event: 'Tournament', match: 'Match centre', player: 'Player', players: 'Players', rankings: 'Rankings',
   race: 'Race', elo: 'Elo', calendar: 'Calendar', h2h: 'Head to head', lab: 'Lab', compare: 'Compare',
   markets: 'Markets', calibration: 'Calibration', value: 'Value', glossary: 'Glossary', methodology: 'Methodology', disclaimer: 'Disclaimer & terms'
 };
 const NAV_OF = { hub: 'hub', event: 'calendar', calendar: 'calendar', match: 'hub', player: 'players', players: 'players',
   rankings: 'rankings', race: 'race', elo: 'elo', h2h: 'h2h', lab: 'lab', compare: 'compare', markets: 'markets',
   calibration: 'calibration', value: 'value', glossary: 'glossary', methodology: 'methodology' };
+/* The sections (QK.sections('tennis')) and the routes each one holds. */
+const SECTION_OF = { hub: 'overview', calendar: 'fixtures', event: 'fixtures', match: 'fixtures', markets: 'fixtures', rankings: 'standings', race: 'standings',
+  elo: 'standings', players: 'players', player: 'players', h2h: 'players', value: 'value', lab: 'lab', compare: 'lab', methodology: 'model',
+  calibration: 'model', glossary: 'model', disclaimer: 'model' };
+/* Tabs per section: [route, label, scope] with scope 'g' (a global route) or '' (per tour). */
+const SECTION_TABS = {
+  fixtures: [['calendar', 'Tournaments', ''], ['markets', 'Odds board', '']],
+  standings: [['rankings', 'Rankings', ''], ['race', 'Race to the Finals', ''], ['elo', 'Elo ratings', '']],
+  players: [['players', 'All players', ''], ['h2h', 'Head to head', '']],
+  value: [['value', 'Player value', '']],
+  lab: [['lab', 'Scatter lab', ''], ['compare', 'Compare', '']],
+  model: [['methodology', 'Methodology', 'g'], ['calibration', 'Calibration', ''], ['glossary', 'Glossary', 'g'], ['disclaimer', 'Terms', 'g']]
+};
+const SECTION_LABEL = { overview: 'Overview', fixtures: 'Draws', standings: 'Rankings', players: 'Players', value: 'Value', lab: 'Lab', model: 'Model' };
+const SECTION_BLURB = {
+  fixtures: 'Every tournament with its draw, the model’s title odds from simulating the draw, and every match priced against the market.',
+  standings: 'The official rankings, the race to the year-end Finals with qualification odds, and our surface Elo ratings.',
+  players: 'Serve and return ratings, surface Elo, form and results for every player, and any two head to head.',
+  value: 'Who is breaking out, who has been lucky, and whose ranking runs ahead of or behind their level.',
+  lab: 'Build your own charts: any two metrics for any group of players, and side-by-side comparisons.',
+  model: 'How the models work, how well they have done against the closing lines, and every metric defined.'
+};
+const DETAIL_OF = { event: 'calendar', match: 'calendar', player: 'players' };
 // Where a page lands when the tour is switched (id pages fall back to their list).
 const SWITCH_TO = { event: 'calendar', match: 'hub', player: 'players', h2h: 'h2h', compare: 'compare' };
 
@@ -230,42 +270,91 @@ function render() {
   state.hash = location.hash || '#/';
   if (prevTour !== state.tour || prevYear !== state.year || !pickerFilled) fillYearPicker();
   updateHeader();
-  markNav(NAV_OF[r.name] || '');
+  markNav(SECTION_OF[r.name] || '');
   const app = document.getElementById('app');
   if (!app) return;
   app.innerHTML = '';
+  app.appendChild(sectionBar(r));
   const el = document.createElement('div');
   el.className = 'page page-' + r.name.replace(/[^a-z0-9-]/gi, '-') + ' tour-' + state.tour;
   app.appendChild(el);
-  document.title = (r.name === 'hub' ? TOUR_NAME[state.tour] + ' · ' : (TITLES[r.name] || 'Page') + (r.global ? '' : ' · ' + TOUR_NAME[state.tour]) + ' · ') + 'The Quant Ace';
+  document.title = (r.name === 'hub' ? TOUR_NAME[state.tour] + ' ' + (state.year || '') + ' · ' : (TITLES[r.name] || 'Page') + (r.global ? '' : ' · ' + TOUR_NAME[state.tour]) + ' · ') + 'The Quant Ace';
   setMeta('');
   window.scrollTo(0, 0);
   const fn = handlerFor(r.name);
   if (!fn) {
     el.innerHTML = r.name === 'notfound'
-      ? comingHTML('Page not found', 'There is no page at <code>' + esc(location.hash) + '</code>. Try the hub or the search box.')
+      ? comingHTML('Page not found', 'There is no page at <code>' + esc(location.hash) + '</code>. Try the overview or the search (press /).')
       : comingHTML((TITLES[r.name] || 'This page') + ' is coming', 'This part of The Quant Ace is still being built.');
     return;
   }
   const seq = ++renderSeq;
-  el.innerHTML = '<div class="muted">Loading…</div>';
+  el.innerHTML = window.QK ? QK.skeleton('lines', 6) : '<div class="muted">Loading…</div>';
   ensureTour(state.tour, Y).then(() => {
     if (seq !== renderSeq || !el.isConnected) return;
     el.innerHTML = '';
     try {
       const out = fn(el, r.params, state);
-      if (out && typeof out.then === 'function') out.then(null, err => showError(el, err));
+      if (out && typeof out.then === 'function') out.then(() => jumpNav(el, r), err => showError(el, err));
+      else jumpNav(el, r);
     } catch (err) { showError(el, err); }
   });
 }
 
 function comingHTML(title, body) {
-  return '<div class="card coming"><div class="pad"><div class="coming-title">' + esc(title) + '</div>' +
-    '<p class="muted-inline">' + body + '</p><p><a href="#/' + state.tour + '">Back to the hub →</a></p></div></div>';
+  return '<div class="qk-card coming"><div class="qk-card-body"><div class="coming-title">' + esc(title) + '</div>' +
+    '<p class="muted-inline">' + body + '</p><p><a class="qk-link" href="#/' + state.tour + '">Back to the overview</a></p></div></div>';
+}
+function tabHref(t, T, Y) { return t[2] === 'g' ? '#/' + t[0] : href(T, t[0], Y); }
+/* The bar above every page: section kicker and title, the section's tabs; on a detail page a link back to its list. */
+function sectionBar(r) {
+  const sec = SECTION_OF[r.name] || '';
+  const bar = document.createElement('div');
+  bar.className = 'ta-secbar';
+  if (!sec || sec === 'overview' || r.name === 'notfound') { bar.hidden = true; bar.innerHTML = '<span id="meta-line" hidden></span>'; return bar; }
+  const T = state.tour, Y = state.year;
+  const tabs = SECTION_TABS[sec] || [];
+  const detail = DETAIL_OF[r.name];
+  const glob = (routeEntry(r.name) || {}).global;
+  const kicker = glob ? 'The Quant Ace · ATP and WTA' : (tourInfo(T).name || TOUR_NAME[T]) + ' · ' + Y;
+  let back = '';
+  if (detail) {
+    const t = tabs.find(x => x[0] === detail) || [detail, TITLES[detail] || titleCase(detail), ''];
+    back = '<a class="ta-back" href="' + tabHref(t, T, Y) + '"><span aria-hidden="true">←</span> ' + esc(SECTION_LABEL[sec] + ' · ' + t[1]) + '</a>';
+  }
+  bar.classList.toggle('is-detail', !!detail);
+  bar.innerHTML = '<div class="ta-secbar-in"><div class="ta-sec-title"><div class="qk-kicker">' + esc(kicker) + '</div>' +
+    (detail ? back : '<h1>' + esc(SECTION_LABEL[sec]) + '</h1><p class="ta-blurb">' + esc(SECTION_BLURB[sec] || '') + '</p>') + '</div>' +
+    '<div class="ta-meta" id="meta-line"></div></div>' +
+    (tabs.length > 1 && !detail ? '<nav class="qk-tabs ta-tabs" aria-label="' + esc(SECTION_LABEL[sec]) + ' pages">' + tabs.map(t =>
+      '<a class="qk-tab" href="' + tabHref(t, T, Y) + '"' + (t[0] === r.name ? ' aria-selected="true" aria-current="page"' : ' aria-selected="false"') + '>' + esc(t[1]) + '</a>').join('') + '</nav>' : '');
+  return bar;
+}
+/* Long detail pages (player, tournament) get a sticky "on this page" strip of their card titles. */
+const JUMP_PAGES = ['player', 'event'];
+function jumpNav(el, r) {
+  if (JUMP_PAGES.indexOf(r.name) < 0) return;
+  const build = () => {
+    if (!el.isConnected) return;
+    const heads = Array.prototype.slice.call(el.querySelectorAll('.card > .card-header, .qk-card > .qk-card-head')).filter(h => h.offsetParent);
+    let nav = el.parentNode.querySelector('.ta-jump');
+    if (heads.length < 4) { if (nav) nav.remove(); return; }
+    if (!nav) { nav = document.createElement('nav'); nav.className = 'ta-jump'; nav.setAttribute('aria-label', 'On this page'); el.parentNode.insertBefore(nav, el); }
+    const label = h => { const t = h.querySelector('.qk-card-title'); const raw = t ? t.textContent : (h.childNodes[0] ? h.childNodes[0].textContent : h.textContent); return String(raw || '').trim().slice(0, 34); };
+    nav.innerHTML = '<div class="qk-chips scroll">' + heads.map((h, i) => '<button type="button" class="qk-chip" data-i="' + i + '">' + esc(label(h)) + '</button>').join('') + '</div>';
+    nav.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      const c = heads[+b.dataset.i].closest('.card, .qk-card') || heads[+b.dataset.i];
+      const off = ['.qk-topbar', '.qk-secnav'].reduce((a, q) => a + ((document.querySelector(q) || {}).offsetHeight || 0), 0) + nav.offsetHeight + 12;
+      window.scrollTo({ top: c.getBoundingClientRect().top + window.scrollY - off, behavior: window.QK && QK.reducedMotion() ? 'auto' : 'smooth' });
+    }));
+  };
+  setTimeout(build, 350);
+  setTimeout(build, 1500);
+  el.addEventListener('click', e => { if (e.target.closest && e.target.closest('.seg-tabs a, .tbtn, [role="tab"]')) setTimeout(build, 250); });
 }
 function showError(el, err) {
   console.error(err);
-  if (el) el.insertAdjacentHTML('afterbegin', '<div class="error-banner">This page could not be shown: ' + esc(err && err.message ? err.message : err) + '</div>');
+  if (el) el.insertAdjacentHTML('afterbegin', '<div class="error-banner" role="alert">This page could not be shown: ' + esc(err && err.message ? err.message : err) + '</div>');
 }
 function go(hash) {
   const h = hash.charAt(0) === '#' ? hash : '#/' + hash.replace(/^\/+/, '');
@@ -689,8 +778,12 @@ function matchLink(T, id, label) {
   return '<a class="game-link match-link" href="' + matchHref(a[0], a[1]) + '">' + esc(a[2] || 'Match centre') + '</a>';
 }
 
-/* A MATCH_CARD tile (index.json live/today/recent/upcoming, schedule, draws). The tile links to the match centre.
- * opts {tour, date: true (date instead of time), event: true (show the event name), compact, round: true}. */
+/* A MATCH_CARD as the kit's game card (index.json live/today/recent/upcoming, schedule, draws), linking to the match
+ * centre: both players with rank, set scores and the model's (live: in-match) win probability, the probability bar, the
+ * model-v-market strip before the first ball, and a line with the likeliest scores and the edge.
+ * opts {tour, date: true (show the date), event: true (show the event name), compact, round: true}. */
+function playerObj(T, pid) { const x = NAMES[T][String(pid)] || {}; return { name: playerShort(T, pid), abbr: (x.country || '').slice(0, 3) || fmtInitials(playerName(T, pid)), href: playerHref(T, pid) }; }
+function fmtInitials(n) { const p = String(n || '?').split(' '); return (p.length > 1 ? p[0][0] + p[p.length - 1][0] : p[0].slice(0, 2)).toUpperCase(); }
 function matchCard(c, opts) {
   const o = opts || {};
   const T = o.tour || state.tour;
@@ -699,6 +792,7 @@ function matchCard(c, opts) {
   const m = c.model || {}, mk = c.market || null;
   const p1 = isNum(m.p1) ? Number(m.p1) : null;
   const live = st === 'live', fin = isFinished(c);
+  const pShow = live && isNum(c.wp_now) ? Number(c.wp_now) : p1;
   const sets = c.sets || [];
   const lv = c.live || null;
   const nSets = Math.max(sets.length + (live && lv && lv.games && sets.length < (lv.set || 0) ? 1 : 0), 0);
@@ -707,7 +801,7 @@ function matchCard(c, opts) {
     let cells = '';
     for (let i = 0; i < nSets; i++) {
       const s = sets[i];
-      let g, tb = '', cls = 'mc-set';
+      let g, tb = '', cls = 'ta-set';
       if (s) {
         g = s[side]; const og = s[1 - side];
         if (g > og) cls += ' won';
@@ -715,34 +809,35 @@ function matchCard(c, opts) {
       } else if (lv && lv.games) { g = lv.games[side]; cls += ' cur'; }
       cells += '<span class="' + cls + '">' + (isNum(g) ? g : '') + tb + '</span>';
     }
-    return '<div class="mc-pl' + (win ? ' mc-win' : '') + (fin && c.winner && !win ? ' mc-lose' : '') + '">' +
-      '<span class="mc-name">' + (isNum(playerRank(T, pid)) ? '<span class="seed">' + playerRank(T, pid) + '</span>' : '') + esc(playerShort(T, pid)) + '</span>' +
-      '<span class="mc-sets">' + cells + '</span>' +
-      '<span class="mc-p" title="Model pre-match win probability">' + (p === null ? '' : pct(p, 0)) + '</span></div>';
+    const rk = playerRank(T, pid);
+    return '<div class="qk-match-row ta-mrow' + (fin && c.winner && !win ? ' lost' : '') + '">' +
+      '<span class="ta-rank" title="Ranking">' + (isNum(rk) ? rk : '') + '</span>' +
+      '<span class="nm">' + esc(playerShort(T, pid)) + (playerCountry(T, pid) ? ' <small class="ta-cc">' + esc(playerCountry(T, pid)) + '</small>' : '') + '</span>' +
+      '<span class="p" title="' + (live && isNum(c.wp_now) ? 'Live' : 'Model pre-match') + ' win probability">' + (p === null || fin ? '' : pct(p, 0)) + '</span>' +
+      '<span class="ta-sets">' + cells + '</span></div>';
   };
-  let top = statusChip(c);
-  if (o.date) top = '<span class="gc-date">' + esc(fmtDate(c.date, { year: false })) + '</span> ' + top;
+  let badge;
+  if (live) badge = '<span class="qk-badge live">Live' + (lv && lv.set ? ' · Set ' + lv.set : '') + '</span>';
+  else if (fin) badge = '<span class="qk-badge final">' + (st === 'ret' ? 'Ret.' : st === 'wo' ? 'W/O' : 'Final') + '</span>';
+  else badge = '<span class="qk-badge">' + esc((o.date !== false ? fmtDate(c.date, { year: false, weekday: false }) + ' ' : '') + (fmtTime(c.date) || '')) + '</span>';
   const tag = (o.event !== false ? eventName(T, c.event) + ' · ' : '') + roundLabel(c.round, true);
-  const lines = [];
-  if (p1 !== null) {
-    const fav = p1 >= 0.5 ? c.p1 : c.p2;
-    const top3 = (m.sets_dist_top || []).slice(0, 2).map(x => esc(x[0]) + ' ' + pct(x[1], 0)).join(', ');
-    lines.push('<span class="gc-l"><b>Model</b> ' + esc(playerSurname(T, fav)) + ' ' + pct(Math.max(p1, 1 - p1), 0) + (top3 ? ' · ' + top3 : '') + (isNum(m.exp_games) ? ' · ' + num(m.exp_games, 1) + ' g' : '') + '</span>');
+  const A = playerObj(T, c.p1), B = playerObj(T, c.p2);
+  const bar = !fin && pShow !== null && window.QK ? QK.probBar(pShow, null, 1 - pShow, A, B) : '';
+  const mvm = st !== 'live' && !fin && mk && isNum(mk.p1) && p1 !== null && window.QK ? QK.mvm(p1, Number(mk.p1), playerSurname(T, c.p1)) : '';
+  const bits = [];
+  const top2 = (m.sets_dist_top || []).slice(0, 2).map(x => esc(x[0]) + ' ' + pct(x[1], 0)).join(' · ');
+  if (top2 && !fin) bits.push('<span title="Likeliest scores">' + top2 + '</span>');
+  if (isNum(m.exp_games) && !fin) bits.push('<span title="Expected games">' + num(m.exp_games, 1) + ' g</span>');
+  let edge = '';
+  if (!fin && !live && mk && isNum(mk.p1) && p1 !== null && Math.abs(p1 - mk.p1) >= 0.05) {
+    const side = p1 > mk.p1 ? c.p1 : c.p2, gap = Math.abs(p1 - mk.p1);
+    edge = '<span class="qk-badge edge" data-tip="The model gives ' + esc(playerShort(T, side)) + ' ' + Math.round(gap * 100) + ' points more than the de-vigged market' + (mk.sources ? ' (' + esc(mk.sources.join(', ')) + ')' : '') + '">Edge ' + esc(playerSurname(T, side)) + ' +' + Math.round(gap * 100) + '</span>';
   }
-  if (mk && isNum(mk.p1)) {
-    const fav = (p1 !== null ? p1 : mk.p1) >= 0.5 ? c.p1 : c.p2;
-    const mp = fav === c.p1 ? mk.p1 : 1 - mk.p1, mm = p1 === null ? null : (fav === c.p1 ? p1 : 1 - p1);
-    lines.push('<span class="gc-l"><b>Market</b> ' + esc(playerSurname(T, fav)) + ' ' + pct(mp, 0) + (mm !== null ? ' (' + edgeHTML(mm, mp, 0) + ')' : '') +
-      (mk.sources && mk.sources.length ? ' <span class="src-chip">' + esc(mk.sources.join(' · ')) + '</span>' : '') + '</span>');
-  }
-  if (live && isNum(c.wp_now)) {
-    const fav = c.wp_now >= 0.5 ? c.p1 : c.p2;
-    lines.push('<span class="gc-l gc-wp"><b>Live</b> ' + esc(playerSurname(T, fav)) + ' ' + pct(Math.max(c.wp_now, 1 - c.wp_now), 0) + ' to win</span>');
-  }
-  return '<a class="gc mc' + (live ? ' gc-live' : '') + (o.compact ? ' gc-compact' : '') + '" href="' + matchHref(T, c.id) + '">' +
-    '<div class="gc-top">' + top + '<span class="gc-tag">' + esc(tag) + '</span></div>' +
-    row(c.p1, 0, p1) + row(c.p2, 1, p1 === null ? null : 1 - p1) +
-    (lines.length ? '<div class="gc-lines">' + lines.join('') + '</div>' : '') + '</a>';
+  const foot = bits.length || edge ? '<div class="qk-match-foot"><span class="ta-mc-bits">' + bits.join('') + '</span>' + edge + '</div>' : '';
+  return '<a class="qk-match ta-mc' + (live ? ' is-live' : '') + (o.compact ? ' gc-compact' : '') + '" href="' + matchHref(T, c.id) + '" style="--sa:var(--a-tennis)">' +
+    '<div class="qk-match-top"><span class="lg">' + esc(tag) + '</span>' + badge + '</div>' +
+    '<div class="qk-match-teams">' + row(c.p1, 0, pShow) + row(c.p2, 1, pShow === null ? null : 1 - pShow) + '</div>' +
+    (bar || mvm ? '<div class="qk-stack" style="--g:6px">' + bar + (mvm ? '<div style="margin-top:6px">' + mvm + '</div>' : '') + '</div>' : '') + foot + '</a>';
 }
 
 // ── tours and years ────────────────────────────────────────────────────────
@@ -767,10 +862,11 @@ function tourName(T) { return TOUR_NAME[isTour(T) ? T : state.tour]; }
 
 // ── HTML builders ──────────────────────────────────────────────────────────
 
+/* A kit card: title and subtitle over the body (bodies keep their own padding classes: .pad, tables flush). */
 function card(title, sub, bodyHtml, id) {
-  return '<div class="card"' + (id ? ' id="' + esc(id) + '"' : '') + '>' +
-    (title ? '<div class="card-header">' + esc(title) + (sub ? ' <span class="card-sub">' + sub + '</span>' : '') + '</div>' : '') +
-    (bodyHtml || '') + '</div>';
+  return '<section class="qk-card card"' + (id ? ' id="' + esc(id) + '"' : '') + '>' +
+    (title ? '<div class="qk-card-head card-header"><div><div class="qk-card-title">' + esc(title) + '</div>' + (sub ? '<div class="qk-card-sub card-sub">' + sub + '</div>' : '') + '</div></div>' : '') +
+    '<div class="card-main">' + (bodyHtml || '') + '</div></section>';
 }
 function muted(text) { return '<div class="muted">' + text + '</div>'; }
 function chip(text, cls) { return '<span class="chip' + (cls ? ' ' + cls : '') + '">' + esc(text) + '</span>'; }
@@ -780,7 +876,7 @@ function notBuilt(what, d) { return muted(esc(what) + ' is not available yet' + 
  * a cell is {v, html, cls, align, title, style} or a primitive. opts {compact, sticky, cls, id}. */
 function tableHTML(cols, rows, opts) {
   const o = opts || {};
-  let h = '<div class="table-wrap' + (o.compact ? ' compact' : '') + '"' + (o.id ? ' id="' + esc(o.id) + '"' : '') + '><table class="wc-table' + (o.sticky ? ' sticky-head' : '') + (o.cls ? ' ' + o.cls : '') + '"><thead><tr>';
+  let h = '<div class="table-wrap qk-table-wrap' + (o.compact ? ' compact' : '') + '"' + (o.id ? ' id="' + esc(o.id) + '"' : '') + '><table class="qk-table wc-table' + (o.compact ? ' dense' : '') + (o.sticky ? ' sticky-head' : '') + (o.cls ? ' ' + o.cls : '') + '"><thead><tr>';
   cols.forEach(c => {
     const cc = typeof c === 'string' ? { label: c } : c;
     h += '<th class="' + (cc.sortable === false ? '' : 'sortable-th') + (cc.cls ? ' ' + cc.cls : '') + '"' +
@@ -840,17 +936,19 @@ function sortable(el) {
   });
 }
 function lerp(a, b, t) { return a + (b - a) * t; }
-/* Blue at the bottom, grey in the middle, red at the top (p is 0-100). */
+/* Percentiles on the kit's diverging scale, the same on every site: red (poor) through the neutral to blue (great); p is 0-100. */
+function tokenOf(n, dflt) { const v = window.QK ? QK.cssVar(n) : ''; return v || dflt; }
 function pctColor(p) {
-  if (!isNum(p)) return '#30363d';
+  if (!isNum(p)) return 'var(--s-3)';
   const t = Math.max(0, Math.min(100, p)) / 100;
-  const from = t < 0.5 ? C.pctLow : C.pctMid, to = t < 0.5 ? C.pctMid : C.pctHigh;
-  const u = t < 0.5 ? t * 2 : (t - 0.5) * 2;
-  return 'rgb(' + Math.round(lerp(from[0], to[0], u)) + ',' + Math.round(lerp(from[1], to[1], u)) + ',' + Math.round(lerp(from[2], to[2], u)) + ')';
+  const neg = tokenOf('--div-neg', '#e66767'), mid = tokenOf('--div-mid', '#383835'), pos = tokenOf('--div-pos', '#3987e5');
+  if (!window.QK) return t < 0.5 ? neg : pos;
+  return t < 0.5 ? QK.color.mix(neg, mid, Math.min(1, t / 0.5) * 0.88) : QK.color.mix(mid, pos, 0.12 + Math.min(1, (t - 0.5) / 0.5) * 0.88);
 }
+function pctInk(p) { if (!isNum(p) || !window.QK) return 'var(--ink-1)'; const c = pctColor(p); return QK.color.parse(c) ? QK.color.ink(c) : '#fff'; }
 function pctPill(p) {
   if (!isNum(p)) return '<span class="pct-pill empty">—</span>';
-  return '<span class="pct-pill" style="background:' + pctColor(p) + '">' + Math.round(p) + '</span>';
+  return '<span class="pct-pill" style="background:' + pctColor(p) + ';color:' + pctInk(p) + '">' + Math.round(p) + '</span>';
 }
 function pctRow(label, p, valueText, title) {
   const known = isNum(p);
@@ -859,19 +957,19 @@ function pctRow(label, p, valueText, title) {
     '<span class="pct-label">' + esc(label) + '</span>' +
     '<div class="pct-bar">' + (known
       ? '<div class="pct-fill" style="width:' + x + '%;background:' + pctColor(p) + '"></div>' +
-        '<span class="pct-dot" style="left:' + x + '%;background:' + pctColor(p) + '">' + Math.round(p) + '</span>'
+        '<span class="pct-dot" style="left:' + x + '%;background:' + pctColor(p) + ';color:' + pctInk(p) + '">' + Math.round(p) + '</span>'
       : '<span class="pct-none">not enough data</span>') +
     '</div><span class="pct-val">' + (valueText === undefined ? '' : valueText) + '</span></div>';
 }
 function statTile(label, value, sub, cls) {
-  return '<div class="kpi' + (cls ? ' ' + cls : '') + '"><div class="kpi-label">' + esc(label) + '</div>' +
-    '<div class="kpi-value">' + (value === undefined || value === null ? '—' : value) + '</div>' + (sub ? '<div class="kpi-sub">' + sub + '</div>' : '') + '</div>';
+  return '<div class="qk-kpi kpi' + (cls ? ' ' + cls : '') + '"><div class="qk-kpi-label kpi-label">' + esc(label) + '</div>' +
+    '<div class="qk-kpi-value kpi-value">' + (value === undefined || value === null ? '—' : value) + '</div>' + (sub ? '<div class="qk-kpi-sub kpi-sub">' + sub + '</div>' : '') + '</div>';
 }
 /* A probability with an inline bar (0-1); colour optional; max scales the bar. */
 function probCell(p, colour, max) {
   if (!isNum(p)) return '<span class="muted-inline">—</span>';
   const w = Math.max(0, Math.min(1, p / (max || 1))) * 100;
-  return '<span class="pcell"><span class="pcell-bar"><span style="width:' + w.toFixed(1) + '%;background:' + (colour || C.ace) + '"></span></span><span class="pcell-v">' + pct(p) + '</span></span>';
+  return '<span class="pcell"><span class="pcell-bar"><span style="width:' + w.toFixed(1) + '%;background:' + (colour || 'var(--c-1)') + '"></span></span><span class="pcell-v">' + pct(p) + '</span></span>';
 }
 /* Model minus market in percentage points, coloured (green = model higher). */
 function edgeHTML(model, market, d) {
@@ -892,28 +990,28 @@ function divColour(v, max, invert) {
   let t = Math.max(-1, Math.min(1, v / max));
   if (invert) t = -t;
   const a = Math.abs(t);
-  return t < 0 ? 'rgba(63,185,80,' + (0.12 + 0.6 * a).toFixed(3) + ')' : 'rgba(248,81,73,' + (0.12 + 0.6 * a).toFixed(3) + ')';
+  return t < 0 ? 'color-mix(in srgb, var(--up) ' + Math.round(12 + 60 * a) + '%, transparent)' : 'color-mix(in srgb, var(--down) ' + Math.round(12 + 60 * a) + '%, transparent)';
 }
 /* Sequential colour for t in [0,1] (the ace yellow-green). */
 function seqColour(t) {
   if (!isNum(t)) return 'transparent';
   const u = Math.max(0, Math.min(1, t));
-  return 'rgba(217,242,79,' + (0.05 + 0.75 * u).toFixed(3) + ')';
+  return 'color-mix(in srgb, var(--accent) ' + Math.round(5 + 75 * u) + '%, transparent)';
 }
 function toggles(items, active, attr) {
   const a = attr || 'data-k';
-  return items.map(it => '<button type="button" class="tbtn' + (String(it.key) === String(active) ? ' active' : '') + '" ' + a + '="' + esc(it.key) + '">' + esc(it.label) + '</button>').join('');
+  return items.map(it => { const on = String(it.key) === String(active); return '<button type="button" class="tbtn' + (on ? ' active' : '') + '" aria-pressed="' + on + '" ' + a + '="' + esc(it.key) + '">' + esc(it.label) + '</button>'; }).join('');
 }
 function wireToggles(root, attr, fn) {
   if (!root) return;
   const a = attr || 'data-k';
   root.querySelectorAll('[' + a + ']').forEach(b => b.addEventListener('click', () => {
-    root.querySelectorAll('[' + a + ']').forEach(x => x.classList.toggle('active', x === b));
+    root.querySelectorAll('[' + a + ']').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
     fn(b.getAttribute(a));
   }));
 }
 function pageHead(title, sub, right) {
-  return '<div class="page-head"><div><h2>' + esc(title) + '</h2>' + (sub ? '<div class="ph-sub muted-inline">' + sub + '</div>' : '') + '</div>' +
+  return '<div class="page-head"><div><h2>' + esc(title) + '</h2>' + (sub ? '<div class="ph-sub">' + sub + '</div>' : '') + '</div>' +
     (right ? '<div class="ph-nav">' + right + '</div>' : '') + '</div>';
 }
 
@@ -983,6 +1081,13 @@ function setYear(Y) {
   go((h === '#/' || h === '#' ? '#/' + T : h) + (qs ? '?' + qs : ''));
 }
 let pickerFilled = false;
+let SHELL = null;
+/* The tour switch and year picker sit at the right of the section nav (the shell's ctx slot). */
+function ctxHTML() {
+  return '<div class="qk-seg ta-tour" role="group" aria-label="Tour">' + TOURS.map(t =>
+    '<button type="button" data-tour="' + t + '" aria-pressed="' + (t === state.tour) + '">' + esc(TOUR_NAME[t]) + '</button>').join('') + '</div>' +
+    '<select class="qk-select ta-year" id="year-select" aria-label="Year"></select>';
+}
 function fillYearPicker() {
   const sel = document.getElementById('year-select');
   if (!sel) return;
@@ -993,109 +1098,73 @@ function fillYearPicker() {
   sel.value = String(state.year || currentYear(T));
   pickerFilled = true;
 }
+function sectionHrefs(T, Y) {
+  return { overview: '#/' + T + yq(T, Y), fixtures: href(T, 'calendar', Y), standings: href(T, 'rankings', Y), players: href(T, 'players', Y),
+    value: href(T, 'value'), lab: href(T, 'lab', Y), model: '#/methodology' };
+}
 function updateHeader() {
   const T = state.tour, Y = state.year;
-  document.querySelectorAll('.lg-btn[data-tour]').forEach(b => {
-    b.classList.toggle('active', b.dataset.tour === T);
-    b.setAttribute('aria-pressed', b.dataset.tour === T ? 'true' : 'false');
-  });
-  const links = { hub: '#/' + T + yq(T, Y), calendar: href(T, 'calendar', Y), rankings: href(T, 'rankings', Y), race: href(T, 'race', Y),
-    elo: href(T, 'elo', Y), players: href(T, 'players', Y), h2h: href(T, 'h2h'), lab: href(T, 'lab', Y), compare: href(T, 'compare', Y),
-    markets: href(T, 'markets'), calibration: href(T, 'calibration'), value: href(T, 'value'), glossary: '#/glossary', methodology: '#/methodology' };
-  document.querySelectorAll('.global-nav a[data-nav]').forEach(a => { if (links[a.dataset.nav]) a.setAttribute('href', links[a.dataset.nav]); });
-  const t = document.querySelector('.site-title a');
-  if (t) t.setAttribute('href', '#/' + T);
-  const input = document.getElementById('search-input');
-  if (input) input.placeholder = 'Search ' + TOUR_NAME[T] + ' players and tournaments…';
+  document.querySelectorAll('.ta-tour button[data-tour]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tour === T ? 'true' : 'false'));
+  const links = sectionHrefs(T, Y);
+  document.querySelectorAll('.qk-secnav a[data-sec]').forEach(a => { if (links[a.dataset.sec]) a.setAttribute('href', links[a.dataset.sec]); });
+  if (document.body) TOURS.forEach(t => document.body.classList.toggle('tour-' + t, t === T));
 }
-function markNav(key) {
-  document.querySelectorAll('.global-nav a[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === key));
-}
+function markNav(key) { if (SHELL) SHELL.setSection(key); }
 function setMeta(html) {
   const el = document.getElementById('meta-line');
   if (!el) return;
   const d = INDEX.data;
-  const base = [TOUR_NAME[state.tour] + ' ' + (state.year || currentYear(state.tour)),
-    d && d.updated_at ? 'Updated ' + esc(fmtStamp(d.updated_at)) : ''].filter(Boolean).join(' · ');
+  const base = d && d.updated_at ? 'Updated ' + esc(fmtStamp(d.updated_at)) : '';
   el.innerHTML = [html, base].filter(Boolean).join(' · ');
 }
 
 function norm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 const SEARCH = {};
+/* The search palette's rows: the tour's players (players_index.json) and this year's tournaments. */
 function loadSearch() {
   const T = state.tour, Y = state.year || currentYear(T);
   const key = T + '/' + Y;
   if (SEARCH[key]) return SEARCH[key];
   SEARCH[key] = ensureTour(T, Y).then(() => {
     const items = [];
-    const ev = EVENTS[T][String(Y)] || {};
-    Object.keys(ev).forEach(id => {
-      const e = ev[id] || {};
-      if (e.level === 'q') return;
-      items.push({ kind: 'Tournaments', id: id, label: (e.name || eventName(T, id)) + ' ' + Y, sub: [levelLabel(e.level, T), surfaceLabel(e.surface, e.indoor), e.city].filter(Boolean).join(' · '),
-        href: eventHref(T, id), order: levelRank(e.level), surface: e.surface, indoor: e.indoor, norm: norm((e.name || '') + ' ' + (e.city || '') + ' ' + id) });
-    });
     const P = NAMES[T];
     Object.keys(P).forEach(id => {
       const x = P[id] || {};
       if (!x.name) return;
-      items.push({ kind: 'Players', id: id, label: x.name, sub: [x.country, isNum(x.rank) ? 'No. ' + x.rank : ''].filter(Boolean).join(' · '),
-        href: playerHref(T, id), order: isNum(x.rank) ? Number(x.rank) : 100000, norm: norm(x.name + ' ' + (x.short || '') + ' ' + (x.country || '')) });
+      items.push({ sport: 'tennis', t: x.name, s: [TOUR_NAME[T], x.country, isNum(x.rank) ? 'No. ' + x.rank : ''].filter(Boolean).join(' · '), href: playerHref(T, id), order: isNum(x.rank) ? Number(x.rank) : 100000 });
+    });
+    const ev = EVENTS[T][String(Y)] || {};
+    Object.keys(ev).forEach(id => {
+      const e = ev[id] || {};
+      if (e.level === 'q') return;
+      items.push({ sport: 'tennis', t: (e.name || eventName(T, id)) + ' ' + Y, s: [levelLabel(e.level, T), surfaceLabel(e.surface, e.indoor), e.city].filter(Boolean).join(' · '),
+        href: eventHref(T, id), order: 500 + levelRank(e.level) });
     });
     items.sort((a, b) => a.order - b.order);
     return items;
   });
   return SEARCH[key];
 }
-function closeSearch() {
-  const box = document.getElementById('search-results');
-  if (box) { box.innerHTML = ''; box.style.display = 'none'; }
-}
-function runSearch(q) {
-  const box = document.getElementById('search-results');
-  const n = norm(q.trim());
-  if (n.length < 2 || !box) { closeSearch(); return; }
-  const T = state.tour;
-  loadSearch().then(items => {
-    const words = n.split(/\s+/).filter(Boolean);
-    const hits = items.filter(it => words.every(w => it.norm.indexOf(w) >= 0));
-    let html = '';
-    ['Players', 'Tournaments'].forEach(g => {
-      const list = hits.filter(h => h.kind === g).slice(0, g === 'Players' ? 9 : 5);
-      if (!list.length) return;
-      html += '<div class="sr-head">' + g + '</div>' + list.map(h =>
-        '<a class="sr-item" href="' + esc(h.href) + '">' + (h.surface ? surfaceDot(h.surface, h.indoor) : '') + '<span>' + esc(h.label) + '</span><span class="sr-sub">' + esc(h.sub || '') + '</span></a>').join('');
-    });
-    box.innerHTML = html || '<div class="sr-empty">No ' + TOUR_NAME[T] + ' player or tournament matches.</div>';
-    box.style.display = 'block';
-  });
-}
-function initSearch() {
-  const input = document.getElementById('search-input');
-  if (!input) return;
-  let timer = null;
-  input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => runSearch(input.value), 120); });
-  input.addEventListener('focus', () => { loadSearch(); if (input.value.trim().length >= 2) runSearch(input.value); });
-  input.addEventListener('keydown', ev => {
-    if (ev.key === 'Escape') { input.value = ''; closeSearch(); input.blur(); }
-    if (ev.key === 'Enter') { const a = document.querySelector('#search-results a.sr-item'); if (a) { location.hash = a.getAttribute('href'); input.value = ''; closeSearch(); } }
-  });
-  document.addEventListener('click', ev => { if (!ev.target.closest('.search-box')) closeSearch(); });
-  const box = document.getElementById('search-results');
-  if (box) box.addEventListener('click', ev => { if (ev.target.closest('a')) { input.value = ''; closeSearch(); } });
-}
+function closeSearch() { /* the palette closes itself on navigation */ }
 function initHeader() {
   const sel = document.getElementById('year-select');
   if (sel) sel.addEventListener('change', () => setYear(sel.value));
-  document.querySelectorAll('.lg-btn[data-tour]').forEach(b => b.addEventListener('click', () => switchTour(b.dataset.tour)));
+  document.querySelectorAll('.ta-tour button[data-tour]').forEach(b => b.addEventListener('click', () => switchTour(b.dataset.tour)));
 }
+function liveAny() { const d = INDEX.data || {}; return TOURS.some(t => (((d.tours || {})[t] || {}).live || []).length > 0); }
 function init() {
+  if (window.QK) {
+    SHELL = QK.shell({
+      sport: 'tennis', section: 'overview',
+      sections: QK.sections('tennis', { value: 'Value', fantasy: null }).map(x => Object.assign({}, x, { href: x.key === 'overview' ? '#/' : '#/' + x.key })),
+      ctx: ctxHTML(),
+      search: { load: loadSearch }
+    });
+  }
   load('index.json').then(idx => {
     INDEX.data = idx;
     initHeader();
-    initSearch();
-    const ov = document.getElementById('loading-overlay');
-    if (ov) ov.style.display = 'none';
+    if (SHELL) SHELL.setLive({ tennis: liveAny() });
     booted = true;
     window.addEventListener('hashchange', render);
     render();
@@ -1132,7 +1201,8 @@ return {
   // HTML
   card: card, muted: muted, chip: chip, notBuilt: notBuilt, tableHTML: tableHTML, sortable: sortable, pctPill: pctPill, pctColor: pctColor,
   pctRow: pctRow, statTile: statTile, probCell: probCell, edgeHTML: edgeHTML, splitBar: splitBar, divColour: divColour, seqColour: seqColour,
-  toggles: toggles, wireToggles: wireToggles, pageHead: pageHead,
+  toggles: toggles, wireToggles: wireToggles, pageHead: pageHead, pctInk: pctInk, alpha: alpha, playerObj: playerObj,
+  SECTION_OF: SECTION_OF, SECTION_TABS: SECTION_TABS, shell: () => SHELL, liveAny: liveAny,
   // charts
   plot: plot, layout: layout, PALETTE: PALETTE, C: C, DARK_LAYOUT: DARK_LAYOUT, PLOTLY_CONF: PLOTLY_CONF,
   FOOTBALL_URL: FOOTBALL_URL, PADDOCK_URL: PADDOCK_URL, HARDWOOD_URL: HARDWOOD_URL, BULLPEN_URL: BULLPEN_URL, GRIDIRON_URL: GRIDIRON_URL, RINK_URL: RINK_URL,

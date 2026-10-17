@@ -67,7 +67,7 @@ K.mean = a => { const s = a.filter(isNum).map(Number); return s.length ? s.reduc
 K.sd = a => { const s = a.filter(isNum).map(Number); if (s.length < 2) return null; const m = K.mean(s); return Math.sqrt(s.reduce((x, y) => x + (y - m) * (y - m), 0) / (s.length - 1)); };
 K.alpha = (hex, a) => {
   const h = String(hex || '').replace('#', '');
-  if (h.length !== 6) return 'rgba(88,166,255,' + a + ')';
+  if (h.length !== 6) return TA.alpha ? TA.alpha(hex || 'var(--c-1)', a) : 'rgba(88,166,255,' + a + ')';
   return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) + ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
 };
 K.logit = p => { const q = Math.min(1 - 1e-9, Math.max(1e-9, p)); return Math.log(q / (1 - q)); };
@@ -200,11 +200,12 @@ K.pctColor = p => {
   const a = t < 0.5 ? lo : mid, b = t < 0.5 ? mid : hi, u = t < 0.5 ? t * 2 : (t - 0.5) * 2;
   return 'rgb(' + [0, 1, 2].map(i => Math.round(a[i] + (b[i] - a[i]) * u)).join(',') + ')';
 };
-K.pill = p => (isNum(p) ? '<span class="pct-pill" style="background:' + K.pctColor(p) + '">' + Math.round(p) + '</span>' : '<span class="pct-pill empty">—</span>');
+K.ink = p => (typeof TA.pctInk === 'function' ? TA.pctInk(p) : '#fff');
+K.pill = p => (isNum(p) ? '<span class="pct-pill" style="background:' + K.pctColor(p) + ';color:' + K.ink(p) + '">' + Math.round(p) + '</span>' : '<span class="pct-pill empty">—</span>');
 K.pctRow = (label, p, valueText, title) => {
   const known = isNum(p), x = known ? Math.max(0, Math.min(100, p)) : 0;
   return '<div class="pct-row"' + (title ? ' title="' + K.esc(title) + '"' : '') + '><span class="pct-label">' + K.esc(label) + '</span><div class="pct-bar">' +
-    (known ? '<div class="pct-fill" style="width:' + x + '%;background:' + K.pctColor(p) + '"></div><span class="pct-dot" style="left:' + x + '%;background:' + K.pctColor(p) + '">' + Math.round(p) + '</span>' : '<span class="pct-none">not enough data</span>') +
+    (known ? '<div class="pct-fill" style="width:' + x + '%;background:' + K.pctColor(p) + '"></div><span class="pct-dot" style="left:' + x + '%;background:' + K.pctColor(p) + ';color:' + K.ink(p) + '">' + Math.round(p) + '</span>' : '<span class="pct-none">not enough data</span>') +
     '</div><span class="pct-val">' + (valueText === undefined ? '' : valueText) + '</span></div>';
 };
 K.SCOPE_NOTE = { wta_stats: 'WTA match stats (WTA API, tour level, 2016 on)', charted: 'Match Charting Project matches only' };

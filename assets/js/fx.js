@@ -53,7 +53,7 @@ FX.mean = a => { const s = a.filter(isNum).map(Number); return s.length ? s.redu
 FX.sd = a => { const s = a.filter(isNum).map(Number); if (s.length < 2) return null; const m = FX.mean(s); return Math.sqrt(s.reduce((x, y) => x + (y - m) * (y - m), 0) / (s.length - 1)); };
 FX.alpha = (hex, a) => {
   const h = String(hex || '').replace('#', '');
-  if (h.length !== 6) return 'rgba(217,242,79,' + a + ')';
+  if (h.length !== 6) return TA.alpha ? TA.alpha(hex || 'var(--c-1)', a) : 'rgba(217,242,79,' + a + ')';
   return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) + ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
 };
 FX.C = TA.C;
@@ -200,7 +200,7 @@ FX.wireToggle = (root, id, fn) => {
 FX.surfaceToggle = (id, cur, withAll) => FX.toggle(id, (withAll === false ? [] : [['all', 'All']]).concat([['hard', 'Hard'], ['clay', 'Clay'], ['grass', 'Grass']]), cur || 'all');
 FX.card = (title, sub, body, id, ctl) => '<div class="card"' + (id ? ' id="' + esc(id) + '"' : '') + '>' + (title ? '<div class="card-header">' + esc(title) + (sub ? ' <span class="card-sub">' + sub + '</span>' : '') + (ctl || '') + '</div>' : '') + (body || '') + '</div>';
 FX.table = (cols, rows, opts) => TA.tableHTML(cols, rows, opts);
-FX.pairColours = (ca, cb) => (!ca || !cb || String(ca).toLowerCase() !== String(cb).toLowerCase() ? [ca || FX.CA, cb || FX.CB] : [ca, '#e6edf3']);
+FX.pairColours = (ca, cb) => (!ca || !cb || String(ca).toLowerCase() !== String(cb).toLowerCase() ? [ca || FX.CA, cb || FX.CB] : [ca, 'var(--ink-1)']);
 
 // ── charts ─────────────────────────────────────────────────────────────────
 

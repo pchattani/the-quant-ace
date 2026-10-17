@@ -1,66 +1,34 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" data-sport="tennis">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
 <title>The Quant Ace</title>
-<meta name="theme-color" content="#0d1117">
+<meta name="description" content="Odds, models and analytics for the ATP and WTA tours: match and tournament odds against the market, surface Elo, serve and return ratings inferred from scores, draw simulations, breakouts and luck, and a player lab.">
+<meta name="theme-color" content="#07090c">
 <meta property="og:site_name" content="The Quant Ace">
 <meta property="og:title" content="The Quant Ace">
-<meta property="og:description" content="Odds, models and analytics for the ATP and WTA tours: match and tournament odds against the market, surface Elo, serve and return ratings inferred from scores, live win probability, the race to the Finals and a player lab.">
+<meta property="og:description" content="Odds, models and analytics for the ATP and WTA tours: match and tournament odds against the market, surface Elo, serve and return ratings inferred from scores, draw simulations, breakouts and luck, and a player lab.">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
-<meta name="description" content="Odds, models and analytics for the ATP and WTA tours: match and tournament odds against the market, surface Elo, serve and return ratings inferred from scores, live win probability, the race to the Finals and a player lab.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d1117'/%3E%3Ccircle cx='16' cy='16' r='10' fill='%23d9f24f'/%3E%3Cpath d='M8.5 9.5 C13 13 13 19 8.5 22.5 M23.5 9.5 C19 13 19 19 23.5 22.5' fill='none' stroke='%230d1117' stroke-width='1.8'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="assets/base.css">
-<link rel="stylesheet" href="assets/ace.css">
-<link rel="stylesheet" href="assets/pages.css">
-<link rel="stylesheet" href="assets/pages-f.css">
-<script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23ffb020'/%3E%3Ccircle cx='16' cy='16' r='9.5' fill='%231a1203'/%3E%3Cpath d='M8.6 11.2c4.6 2 4.6 7.6 0 9.6M23.4 11.2c-4.6 2-4.6 7.6 0 9.6' fill='none' stroke='%23ffb020' stroke-width='1.8'/%3E%3C/svg%3E">
+<script>try{var t=/[?&]theme=(light|dark)/.exec(location.search);t=t?t[1]:localStorage.getItem('qk-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="assets/qk/tokens.css">
+<link rel="stylesheet" href="assets/qk/quant.css">
+<link rel="stylesheet" href="assets/legacy.css">
+<link rel="stylesheet" href="assets/ace-qk.css">
 </head>
-<body>
-
-<div id="loading-overlay">
-  <div class="spinner"></div>
-  <div class="loading-text">Loading…</div>
-</div>
-
-<header class="site-header">
-  <div class="container-xl">
-    <div class="header-row">
-      <h1 class="site-title"><a href="#/"><span class="brand-mark ta-mark"></span><span class="brand-text">The Quant Ace<span class="brand-tag">Odds, models and analytics for the ATP and WTA tours</span></span></a></h1>
-      <div class="league-switch tour-switch" role="group" aria-label="Tour">
-        <button type="button" class="lg-btn" data-tour="atp">ATP</button><button type="button" class="lg-btn" data-tour="wta">WTA</button>
-      </div>
-      <div class="search-box">
-        <input id="search-input" type="search" placeholder="Search players and tournaments…" autocomplete="off" spellcheck="false">
-        <div id="search-results" class="search-results"></div>
-      </div>
-      <div class="comp-picker season-picker year-picker">
-        <label for="year-select">Year</label>
-        <select id="year-select"></select>
-      </div>
-      <div class="sister-group" aria-label="Sister sites">
-        <a class="sister-link" href="https://pchattani.github.io/the-quant-footballer/" title="The sister site: football odds, models and analytics">⚽ Footballer</a>
-        <a class="sister-link" href="https://pchattani.github.io/the-quant-paddock/" title="The sister site: Formula 1 odds, models and analytics">🏁 Paddock</a>
-        <a class="sister-link" href="https://pchattani.github.io/the-quant-hardwood/" title="The sister site: NBA and WNBA odds, models and analytics">🏀 Hardwood</a>
-        <a class="sister-link" href="https://pchattani.github.io/the-quant-bullpen/" title="The sister site: MLB odds, pitch models and analytics">⚾ Bullpen</a>
-        <a class="sister-link" href="https://pchattani.github.io/the-quant-gridiron/" title="The sister site: NFL odds, models and analytics">🏈 Gridiron</a>
-        <a class="sister-link" href="https://pchattani.github.io/the-quant-rink/" title="The sister site: NHL odds, models and analytics">🏒 Rink</a>
-      </div>
-      <nav class="global-nav hw-nav ta-nav">
-        <a href="#/" data-nav="hub">Hub</a><a href="#/" data-nav="calendar">Calendar</a><a href="#/" data-nav="rankings">Rankings</a><a href="#/" data-nav="race">Race</a><a href="#/" data-nav="elo">Elo</a><a href="#/" data-nav="players">Players</a><a href="#/" data-nav="value">Value</a><a href="#/" data-nav="h2h">H2H</a><a href="#/" data-nav="lab">Lab</a><a href="#/" data-nav="compare">Compare</a><a href="#/" data-nav="markets">Markets</a><a href="#/" data-nav="calibration">Calibration</a><a href="#/glossary" data-nav="glossary">Glossary</a><a href="#/methodology" data-nav="methodology">Methodology</a>
-      </nav>
-      <div class="site-sub"><span id="meta-line">—</span></div>
-    </div>
-  </div>
-</header>
-
-<main id="app" class="container-xl hw-main ta-main"></main>
+<body class="qk">
+<div id="qk-shell"></div>
+<main id="main" class="qk-page ta-page"><div id="app"></div></main>
 
 <template id="disclaimer-template">
   <div class="card">
-    <div class="card-header">Disclaimer &amp; terms of use <span class="card-sub">Last updated 1 October 2026</span></div>
+    <div class="card-header">Disclaimer &amp; terms of use <span class="card-sub">Last updated 17 October 2026</span></div>
     <div class="prose-dark pad legal">
       <p>The Quant Ace is an independent, non-commercial hobby project that applies statistical models to publicly
       available ATP and WTA tennis data. By using this site you agree to the terms below. If you do not agree, please do
@@ -130,10 +98,11 @@
 
       <h5>8. Privacy</h5>
       <p>The site sets no cookies, runs no analytics or advertising, and collects no personal data. Your browser
-      remembers only that you dismissed the first-visit notice and which tour you last viewed, locally on your device.
-      The page loads its charting library from a third-party content delivery network (cdn.plot.ly), which receives your
-      IP address when your browser makes the request, like any web server. The site itself is hosted on GitHub Pages,
-      whose own privacy terms apply to its server logs.</p>
+      remembers only that you dismissed the first-visit notice, which tour you last viewed and whether you chose the light
+      or dark theme, locally on your device. The page loads its charting library (Apache ECharts) from a third-party content
+      delivery network (cdn.jsdelivr.net) and its typefaces from Google Fonts (fonts.googleapis.com, fonts.gstatic.com);
+      each receives your IP address when your browser makes the request, like any web server. The site itself is hosted
+      on GitHub Pages, whose own privacy terms apply to its server logs.</p>
 
       <h5>9. Changes</h5>
       <p>These terms may change at any time; the date above shows the latest version. Continued use of the site after
@@ -143,65 +112,49 @@
   </div>
 </template>
 
-<footer class="site-footer">
-  <div class="container-xl">
-    <span id="footer-meta">The Quant Ace</span>
-    · Results and closing odds from <a href="http://www.tennis-data.co.uk/">tennis-data.co.uk</a>; scores from ESPN; WTA match statistics; public markets ·
-    style data from the <a href="https://github.com/JeffSackmann/tennis_MatchChartingProject">Match Charting Project</a> (<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>) ·
-    <a href="https://pchattani.github.io/the-quant-footballer/">⚽ The Quant Footballer</a> ·
-    <a href="https://pchattani.github.io/the-quant-paddock/">🏁 The Quant Paddock</a> ·
-    <a href="https://pchattani.github.io/the-quant-hardwood/">🏀 The Quant Hardwood</a> ·
-    <a href="https://pchattani.github.io/the-quant-bullpen/">⚾ The Quant Bullpen</a> ·
-    <a href="https://pchattani.github.io/the-quant-gridiron/">🏈 The Quant Gridiron</a> ·
-    <a href="https://pchattani.github.io/the-quant-rink/">🏒 The Quant Rink</a>
-    <div class="footer-legal">For information and entertainment only &mdash; not betting, financial or professional advice. Probabilities are model estimates and can be wrong; no bets are offered. Unofficial: not affiliated with or endorsed by the ATP, the WTA, the ITF, any tournament, player, ESPN or bookmaker; no logos are used and names belong to their owners. 18+. Gamble responsibly. <a href="#/disclaimer">Disclaimer &amp; terms</a></div>
+<div class="ta-legal">
+  <div class="ta-legal-in">
+    <p>Results and closing odds from <a href="http://www.tennis-data.co.uk/">tennis-data.co.uk</a>; scores from ESPN; WTA match statistics; public
+    prediction markets. Style data from the <a href="https://github.com/JeffSackmann/tennis_MatchChartingProject">Match Charting Project</a>
+    (<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>).</p>
+    <p>For information and entertainment only &mdash; not betting, financial or professional advice. Probabilities are model estimates and can be wrong;
+    no bets are offered. Unofficial: not affiliated with or endorsed by the ATP, the WTA, the ITF, any tournament, player, ESPN or bookmaker; no logos are
+    used and names belong to their owners. 18+. Gamble responsibly. <a href="#/disclaimer">Disclaimer &amp; terms</a></p>
   </div>
-</footer>
+</div>
+<div id="qk-footer"></div>
 
 <div id="first-visit-notice" class="fv-notice" hidden>
-  <div class="container-xl fv-row">
+  <div class="fv-row">
     <span><strong>For information and entertainment only.</strong> Match and title probabilities are model estimates, not
     betting or financial advice. Unofficial: not affiliated with the ATP, the WTA, the ITF, any tournament, player or ESPN;
     no logos are used. 18+ where gambling is discussed. <a href="#/disclaimer">Read the disclaimer &amp; terms</a>.</span>
-    <button type="button" id="fv-dismiss" class="fv-btn">I understand</button>
+    <button type="button" id="fv-dismiss" class="qk-btn primary">I understand</button>
   </div>
 </div>
-<script>
-(function () {
-  var KEY = 'qa-notice-v1', el = document.getElementById('first-visit-notice');
-  var seen = false;
-  try { seen = window.localStorage.getItem(KEY) === '1'; } catch (e) { seen = false; }
-  if (!seen) el.hidden = false;
-  document.getElementById('fv-dismiss').addEventListener('click', function () {
-    el.hidden = true;
-    try { window.localStorage.setItem(KEY, '1'); } catch (e) { /* private mode: shown again next visit */ }
-  });
-})();
-</script>
-<script src="assets/js/core.js"></script>
-<script src="assets/js/charts.js"></script>
-<script src="assets/js/fx.js"></script>
-<script src="assets/js/hub.js"></script>
-<script src="assets/js/event.js"></script>
-<script src="assets/js/match.js"></script>
-<script src="assets/js/rankings.js"></script>
-<script src="assets/js/race.js"></script>
-<script src="assets/js/calendar.js"></script>
-<script src="assets/js/markets.js"></script>
-<script src="assets/js/players.js"></script>
-<script src="assets/js/elo.js"></script>
-<script src="assets/js/h2h.js"></script>
-<script src="assets/js/lab.js"></script>
-<script src="assets/js/compare.js"></script>
-<script src="assets/js/calibration.js"></script>
-<script src="assets/js/value.js"></script>
-<script src="assets/js/docs.js"></script>
-<script>
-/* The disclaimer route lives with the shell: its text is the <template> above. */
-TA.route('disclaimer', function (el) {
-  var t = document.getElementById('disclaimer-template');
-  el.innerHTML = t ? t.innerHTML : '';
-});
-</script>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
+<script src="assets/qk/quant.js" defer></script>
+<script src="assets/qk/quant-charts.js" defer></script>
+<script src="assets/js/plotly-ec.js" defer></script>
+<script src="assets/js/core.js" defer></script>
+<script src="assets/js/charts.js" defer></script>
+<script src="assets/js/fx.js" defer></script>
+<script src="assets/js/overview.js" defer></script>
+<script src="assets/js/event.js" defer></script>
+<script src="assets/js/match.js" defer></script>
+<script src="assets/js/rankings.js" defer></script>
+<script src="assets/js/race.js" defer></script>
+<script src="assets/js/calendar.js" defer></script>
+<script src="assets/js/markets.js" defer></script>
+<script src="assets/js/players.js" defer></script>
+<script src="assets/js/elo.js" defer></script>
+<script src="assets/js/h2h.js" defer></script>
+<script src="assets/js/lab.js" defer></script>
+<script src="assets/js/compare.js" defer></script>
+<script src="assets/js/calibration.js" defer></script>
+<script src="assets/js/value.js" defer></script>
+<script src="assets/js/docs.js" defer></script>
+<script src="assets/js/site.js" defer></script>
 </body>
 </html>

@@ -93,7 +93,9 @@ function render(el, params) {
     if (!el.isConnected) return null;
     const mk = TA.ok(arr[0]) ? arr[0] : null, race = TA.ok(arr[1]) ? arr[1] : null;
     const evIds = Object.keys(((mk || {}).futures || {}).events || {});
-    return TA.loadAll(evIds.map(e => TA.eventPath(T, e))).then(evs => [mk, race, evIds, evs, arr[0]]);
+    /* read only events with a page: this year's from the year's event list, earlier years' as they are (next year's draws are not built) */
+    const cy = TA.currentYear(T), have = e => { const y = Number(TA.yearOfId(e)) || 0; return y < cy ? y > 0 : y === cy && !!(TA.EVENTS[T][String(cy)] || {})[e]; };
+    return TA.loadAll(evIds.map(e => (have(e) ? TA.eventPath(T, e) : 'index.json'))).then(evs => [mk, race, evIds, evs.map((v, i) => (have(evIds[i]) ? v : null)), arr[0]]);
   }).then(res => {
     if (!res || !el.isConnected) return;
     const mk = res[0], race = res[1], evIds = res[2], evs = res[3];

@@ -30,7 +30,7 @@ function node(el) { return typeof el === 'string' ? document.getElementById(el) 
 function empty(el, text) { const n = node(el); if (n) n.innerHTML = '<div class="muted">' + text + '</div>'; }
 function hexA(hex, a) {
   const h = String(hex || '').replace('#', '');
-  if (h.length !== 6) return 'rgba(139,148,158,' + a + ')';
+  if (h.length !== 6) return TA.alpha ? TA.alpha(hex, a) : 'rgba(139,148,158,' + a + ')';
   return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) + ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
 }
 const ROUNDS_ALL = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F'];
